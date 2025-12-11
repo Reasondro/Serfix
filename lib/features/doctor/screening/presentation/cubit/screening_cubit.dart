@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:serfix/core/services/inference/inference_repository.dart';
 import 'package:serfix/features/doctor/screening/domain/entities/screening.dart';
 import 'package:serfix/features/doctor/screening/domain/repositories/screening_repository.dart';
 
@@ -9,8 +10,12 @@ part 'screening_state.dart';
 
 class ScreeningCubit extends Cubit<ScreeningState> {
   final ScreeningRepository repository;
+  final InferenceRepository? inferenceRepository;
 
-  ScreeningCubit({required this.repository}) : super(ScreeningInitial());
+  ScreeningCubit({
+    required this.repository,
+    this.inferenceRepository,
+  }) : super(ScreeningInitial());
 
   Future<void> loadScreenings() async {
     try {
@@ -67,10 +72,29 @@ class ScreeningCubit extends Cubit<ScreeningState> {
         notes: notes,
       );
       emit(ScreeningCreated(screening: screening));
+
+      // Trigger AI inference in background (if inference repository is available)
+      if (inferenceRepository != null) {
+        _runInferenceInBackground(screening);
+      }
+
       // Reload list
       await loadScreenings();
     } catch (e) {
       emit(ScreeningError(message: 'Failed to create screening: $e'));
+    }
+  }
+
+  /// Runs inference in background without blocking the UI
+  void _runInferenceInBackground(Screening screening) async {
+    try {
+      await inferenceRepository!.processScreening(screening);
+      // Reload to show updated results
+      await loadScreenings();
+    } catch (e) {
+      // Inference failed - status will be 'failed' in DB
+      // Just reload to reflect the failed state
+      await loadScreenings();
     }
   }
 
@@ -90,6 +114,22 @@ class ScreeningCubit extends Cubit<ScreeningState> {
     } catch (e) {
       emit(ScreeningError(message: 'Failed to get screening: $e'));
       return null;
+    }
+  }
+
+  /// Manually trigger inference for a pending screening
+  Future<void> retryInference(Screening screening) async {
+    if (inferenceRepository == null) {
+      emit(const ScreeningError(message: 'Inference service not available'));
+      return;
+    }
+
+    try {
+      await inferenceRepository!.processScreening(screening);
+      await loadScreenings();
+    } catch (e) {
+      emit(ScreeningError(message: 'Inference failed: $e'));
+      await loadScreenings();
     }
   }
 }

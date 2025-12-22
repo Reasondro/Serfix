@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:serfix/app/themes/cubit/theme_cubit.dart';
+import 'package:serfix/app/themes/dark_mode.dart';
 import 'package:serfix/app/themes/light_mode.dart';
 import 'package:serfix/core/services/inference/inference_repository.dart';
 import 'package:serfix/core/services/inference/inference_service.dart';
@@ -20,10 +22,12 @@ class App extends StatefulWidget {
     super.key,
     required this.router,
     required this.authCubit,
+    required this.themeCubit,
   });
 
   final GoRouter router;
   final AuthCubit authCubit;
+  final ThemeCubit themeCubit;
 
   @override
   State<App> createState() => _AppState();
@@ -74,6 +78,7 @@ class _AppState extends State<App> {
       child: MultiBlocProvider(
         providers: [
           BlocProvider<AuthCubit>.value(value: widget.authCubit),
+          BlocProvider<ThemeCubit>.value(value: widget.themeCubit),
           BlocProvider<ScreeningCubit>(
             create: (context) => ScreeningCubit(
               repository: context.read<ScreeningRepository>(),
@@ -81,11 +86,17 @@ class _AppState extends State<App> {
             ),
           ),
         ],
-        child: MaterialApp.router(
-          debugShowCheckedModeBanner: false,
-          title: 'Serfix',
-          theme: serfixLightTheme,
-          routerConfig: widget.router,
+        child: BlocBuilder<ThemeCubit, ThemeState>(
+          builder: (context, themeState) {
+            return MaterialApp.router(
+              debugShowCheckedModeBanner: false,
+              title: 'Serfix',
+              theme: serfixLightTheme,
+              darkTheme: serfixDarkTheme,
+              themeMode: themeState.themeMode,
+              routerConfig: widget.router,
+            );
+          },
         ),
       ),
     );

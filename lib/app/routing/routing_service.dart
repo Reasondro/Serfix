@@ -11,7 +11,10 @@ import 'package:serfix/features/doctor/dashboard/presentation/screens/doctor_das
 import 'package:serfix/features/doctor/capture/presentation/screens/doctor_capture_screen.dart';
 import 'package:serfix/features/doctor/screenings/presentation/screens/doctor_screenings_screen.dart';
 import 'package:serfix/features/doctor/profile/presentation/screens/doctor_profile_screen.dart';
+import 'package:serfix/features/doctor/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:serfix/features/doctor/screening/presentation/screens/screening_detail_screen.dart';
+import 'package:serfix/features/doctor/settings/presentation/screens/settings_screen.dart';
+import 'package:serfix/features/doctor/help/presentation/screens/help_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -146,6 +149,27 @@ class RoutingService {
             ],
           ),
         ],
+      ),
+
+      // Settings Route (outside shell)
+      GoRoute(
+        name: Routes.settings,
+        path: Routes.doctorSettings,
+        builder: (context, state) => const SettingsScreen(),
+      ),
+
+      // Edit Profile Route
+      GoRoute(
+        name: Routes.editProfile,
+        path: Routes.doctorEditProfile,
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+
+      // Help Route
+      GoRoute(
+        name: Routes.help,
+        path: Routes.doctorHelp,
+        builder: (context, state) => const HelpScreen(),
       ),
     ],
   );

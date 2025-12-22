@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:equatable/equatable.dart';
@@ -5,17 +6,110 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:serfix/core/services/inference/inference_repository.dart';
 import 'package:serfix/features/doctor/screening/domain/entities/screening.dart';
 import 'package:serfix/features/doctor/screening/domain/repositories/screening_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 part 'screening_state.dart';
 
 class ScreeningCubit extends Cubit<ScreeningState> {
   final ScreeningRepository repository;
   final InferenceRepository? inferenceRepository;
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  RealtimeChannel? _screeningsChannel;
+  RealtimeChannel? _resultsChannel;
+  bool _isSubscribed = false;
 
   ScreeningCubit({
     required this.repository,
     this.inferenceRepository,
   }) : super(ScreeningInitial());
+
+  /// Subscribe to real-time updates for screenings
+  void subscribeToRealtimeUpdates() {
+    if (_isSubscribed) return;
+
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    // Subscribe to screenings table changes
+    _screeningsChannel = _supabase
+        .channel('screenings_changes')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'screenings',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'doctor_id',
+            value: userId,
+          ),
+          callback: (payload) {
+            _handleScreeningChange(payload);
+          },
+        )
+        .subscribe();
+
+    // Subscribe to screening_results table changes
+    _resultsChannel = _supabase
+        .channel('results_changes')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'screening_results',
+          callback: (payload) {
+            _handleResultChange(payload);
+          },
+        )
+        .subscribe();
+
+    _isSubscribed = true;
+  }
+
+  void _handleScreeningChange(PostgresChangePayload payload) {
+    // Reload data when screening changes
+    _silentReload();
+  }
+
+  void _handleResultChange(PostgresChangePayload payload) {
+    // Reload data when result is added/updated
+    _silentReload();
+  }
+
+  /// Reload without showing loading state (for real-time updates)
+  Future<void> _silentReload() async {
+    try {
+      final screenings = await repository.getScreenings();
+      final stats = await repository.getScreeningStats();
+
+      final currentState = state;
+      if (currentState is ScreeningLoaded) {
+        emit(ScreeningLoaded(
+          screenings: screenings,
+          stats: stats,
+          filterStatus: currentState.filterStatus,
+        ));
+      } else {
+        emit(ScreeningLoaded(screenings: screenings, stats: stats));
+      }
+    } catch (e) {
+      // Silently fail for background updates
+    }
+  }
+
+  /// Unsubscribe from real-time updates
+  void unsubscribeFromRealtimeUpdates() {
+    _screeningsChannel?.unsubscribe();
+    _resultsChannel?.unsubscribe();
+    _screeningsChannel = null;
+    _resultsChannel = null;
+    _isSubscribed = false;
+  }
+
+  @override
+  Future<void> close() {
+    unsubscribeFromRealtimeUpdates();
+    return super.close();
+  }
 
   Future<void> loadScreenings() async {
     try {
@@ -23,6 +117,9 @@ class ScreeningCubit extends Cubit<ScreeningState> {
       final screenings = await repository.getScreenings();
       final stats = await repository.getScreeningStats();
       emit(ScreeningLoaded(screenings: screenings, stats: stats));
+
+      // Subscribe to real-time updates after initial load
+      subscribeToRealtimeUpdates();
     } catch (e) {
       emit(ScreeningError(message: 'Failed to load screenings: $e'));
     }
@@ -89,12 +186,9 @@ class ScreeningCubit extends Cubit<ScreeningState> {
   void _runInferenceInBackground(Screening screening) async {
     try {
       await inferenceRepository!.processScreening(screening);
-      // Reload to show updated results
-      await loadScreenings();
+      // Real-time subscription will handle the UI update
     } catch (e) {
-      // Inference failed - status will be 'failed' in DB
-      // Just reload to reflect the failed state
-      await loadScreenings();
+      // Inference failed - real-time subscription will handle the UI update
     }
   }
 
@@ -126,7 +220,7 @@ class ScreeningCubit extends Cubit<ScreeningState> {
 
     try {
       await inferenceRepository!.processScreening(screening);
-      await loadScreenings();
+      // Real-time subscription will handle the UI update
     } catch (e) {
       emit(ScreeningError(message: 'Inference failed: $e'));
       await loadScreenings();

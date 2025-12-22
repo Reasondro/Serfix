@@ -9,6 +9,9 @@ class Routes {
   static const String doctorScreenings = '/doctor/screenings';
   static const String doctorScreeningDetail = '/doctor/screening/:id';
   static const String doctorProfile = '/doctor/profile';
+  static const String doctorSettings = '/doctor/settings';
+  static const String doctorEditProfile = '/doctor/edit-profile';
+  static const String doctorHelp = '/doctor/help';
 
   // Shared route names
   static const String dashboard = 'dashboard';
@@ -16,4 +19,7 @@ class Routes {
   static const String screenings = 'screenings';
   static const String screeningDetail = 'screening-detail';
   static const String profile = 'profile';
+  static const String settings = 'settings';
+  static const String editProfile = 'edit-profile';
+  static const String help = 'help';
 }

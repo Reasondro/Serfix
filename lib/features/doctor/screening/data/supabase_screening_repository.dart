@@ -9,6 +9,36 @@ class SupabaseScreeningRepository implements ScreeningRepository {
 
   String get _userId => _supabase.auth.currentUser!.id;
 
+  /// Generates a signed URL for a storage path
+  /// Handles both old full URLs and new path-only values
+  Future<String> _getSignedUrl(String pathOrUrl) async {
+    // Extract path if it's a full URL (for backwards compatibility)
+    String path = pathOrUrl;
+    if (pathOrUrl.contains('storage/v1/object/')) {
+      final uri = Uri.parse(pathOrUrl);
+      final segments = uri.pathSegments;
+      final bucketIndex = segments.indexOf('screening-images');
+      if (bucketIndex != -1 && bucketIndex + 1 < segments.length) {
+        path = segments.sublist(bucketIndex + 1).join('/');
+      }
+    }
+
+    // Generate signed URL valid for 1 hour
+    final signedUrl = await _supabase.storage
+        .from('screening-images')
+        .createSignedUrl(path, 3600);
+    return signedUrl;
+  }
+
+  /// Converts a screening JSON to a Screening with signed URL
+  Future<Screening> _screeningWithSignedUrl(Map<String, dynamic> json) async {
+    final imageUrl = json['image_url'] as String?;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      json['image_url'] = await _getSignedUrl(imageUrl);
+    }
+    return Screening.fromJson(json);
+  }
+
   @override
   Future<List<Screening>> getScreenings() async {
     final response = await _supabase
@@ -17,9 +47,11 @@ class SupabaseScreeningRepository implements ScreeningRepository {
         .eq('doctor_id', _userId)
         .order('created_at', ascending: false);
 
-    return (response as List)
-        .map((json) => Screening.fromJson(json as Map<String, dynamic>))
-        .toList();
+    final screenings = <Screening>[];
+    for (final json in response as List) {
+      screenings.add(await _screeningWithSignedUrl(json as Map<String, dynamic>));
+    }
+    return screenings;
   }
 
   @override
@@ -32,7 +64,7 @@ class SupabaseScreeningRepository implements ScreeningRepository {
         .maybeSingle();
 
     if (response == null) return null;
-    return Screening.fromJson(response);
+    return _screeningWithSignedUrl(response);
   }
 
   @override
@@ -44,9 +76,11 @@ class SupabaseScreeningRepository implements ScreeningRepository {
         .eq('status', status.name)
         .order('created_at', ascending: false);
 
-    return (response as List)
-        .map((json) => Screening.fromJson(json as Map<String, dynamic>))
-        .toList();
+    final screenings = <Screening>[];
+    for (final json in response as List) {
+      screenings.add(await _screeningWithSignedUrl(json as Map<String, dynamic>));
+    }
+    return screenings;
   }
 
   @override
@@ -124,10 +158,7 @@ class SupabaseScreeningRepository implements ScreeningRepository {
           fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
         );
 
-    // Get public URL
-    final imageUrl =
-        _supabase.storage.from('screening-images').getPublicUrl(filePath);
-
+    // Store the file path (not URL) - we'll generate signed URLs when loading
     // Create screening record
     final response = await _supabase
         .from('screenings')
@@ -136,13 +167,13 @@ class SupabaseScreeningRepository implements ScreeningRepository {
           'patient_identifier': patientIdentifier,
           'patient_age': patientAge,
           'notes': notes,
-          'image_url': imageUrl,
+          'image_url': filePath, // Store path, not URL
           'status': ScreeningStatus.pending.name,
         })
         .select('*, screening_results(*)')
         .single();
 
-    return Screening.fromJson(response);
+    return _screeningWithSignedUrl(response);
   }
 
   @override
@@ -170,7 +201,7 @@ class SupabaseScreeningRepository implements ScreeningRepository {
         .select('*, screening_results(*)')
         .single();
 
-    return Screening.fromJson(response);
+    return _screeningWithSignedUrl(response);
   }
 
   @override

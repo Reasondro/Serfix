@@ -113,25 +113,34 @@ class _ScreeningDetailScreenState extends State<ScreeningDetailScreen> {
               aspectRatio: 4 / 3,
               child: Container(
                 color: AppColors.textPrimary,
-                child: Image.network(
-                  result?.resultImageUrl ?? screening.imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => Center(
-                    child: Icon(
-                      Icons.image_not_supported,
-                      size: 64,
-                      color: AppColors.gray,
-                    ),
-                  ),
-                  loadingBuilder: (_, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
+                child: Builder(
+                  builder: (context) {
+                    final imageUrl = result?.resultImageUrl ?? screening.imageUrl;
+                    print('DEBUG: Loading detail image URL: $imageUrl');
+                    return Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, error, ___) {
+                        print('DEBUG: Detail image load error: $error');
+                        return Center(
+                          child: Icon(
+                            Icons.image_not_supported,
+                            size: 64,
+                            color: AppColors.gray,
+                          ),
+                        );
+                      },
+                      loadingBuilder: (_, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
                     );
                   },
                 ),

@@ -127,6 +127,7 @@ class RoutingService {
                 builder: (context, state) => const DoctorScreeningsScreen(),
                 routes: [
                   GoRoute(
+                    parentNavigatorKey: _rootNavigatorKey,
                     name: Routes.screeningDetail,
                     path: ':id',
                     builder: (context, state) {

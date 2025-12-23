@@ -254,23 +254,31 @@ class _DoctorScreeningsScreenState extends State<DoctorScreeningsScreen> {
                   width: 60,
                   height: 60,
                   color: AppColors.lightGray,
-                  child: Image.network(
-                    screening.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.image_not_supported,
-                      color: AppColors.gray,
-                    ),
-                    loadingBuilder: (_, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
+                  child: Builder(
+                    builder: (context) {
+                      print('DEBUG: Loading thumbnail URL: ${screening.imageUrl}');
+                      return Image.network(
+                        screening.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, error, ___) {
+                          print('DEBUG: Image load error: $error');
+                          return Icon(
+                            Icons.image_not_supported,
+                            color: AppColors.gray,
+                          );
+                        },
+                        loadingBuilder: (_, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
